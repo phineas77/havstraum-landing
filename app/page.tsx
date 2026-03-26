@@ -1,34 +1,32 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Inter, Playfair_Display } from "next/font/google";
+import { Manrope } from "next/font/google";
 
-/**
- * This page matches the Lovable version more closely:
- * - Same icon set (Lucide-style inline SVGs) and icon sizing
- * - Button hover grows slightly (hover:scale-105) + brightness
- * - Card hover effects match (border/teal shadow, group hover)
- * - Uses the same section structure, spacing, and typography approach
- *
- * No extra deps required.
- */
-
-const fontDisplay = Playfair_Display({
-  subsets: ["latin"],
-  variable: "--font-display",
-  display: "swap",
-});
-
-const fontBody = Inter({
+const fontBody = Manrope({
   subsets: ["latin"],
   variable: "--font-body",
   display: "swap",
 });
 
+type ContactFormState = {
+  name: string;
+  email: string;
+  message: string;
+};
+
+const initialFormState: ContactFormState = {
+  name: "",
+  email: "",
+  message: "",
+};
+
 export default function Page() {
   const [scrolled, setScrolled] = useState(false);
+  const [isContactOpen, setIsContactOpen] = useState(false);
+  const [contactForm, setContactForm] = useState<ContactFormState>(initialFormState);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50);
@@ -37,9 +35,48 @@ export default function Page() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    if (!isContactOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsContactOpen(false);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isContactOpen]);
+
+  const openContactForm = () => setIsContactOpen(true);
+  const closeContactForm = () => setIsContactOpen(false);
+
+  const handleContactSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const subject = `Havstraum enquiry from ${contactForm.name}`;
+    const body = [
+      `Name: ${contactForm.name}`,
+      `Organisation email: ${contactForm.email}`,
+      "",
+      "Message:",
+      contactForm.message,
+    ].join("\n");
+
+    window.location.href = `mailto:info@havstraum.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    setContactForm(initialFormState);
+    closeContactForm();
+  };
+
   return (
-    <div className={`${fontDisplay.variable} ${fontBody.variable} min-h-screen`}>
-      {/* Global tokens to mimic Lovable's Tailwind theme */}
+    <div className={`${fontBody.variable} min-h-screen`}>
       <style jsx global>{`
         :root {
           --navy-deep: 222 85% 10%;
@@ -52,22 +89,36 @@ export default function Page() {
           --muted: 215 16% 47%;
           --card: 0 0% 100%;
           --border: 214 18% 90%;
+          --font-brand:
+            "Garet", "Garet Book", "Garet Medium", var(--font-body),
+            ui-sans-serif, system-ui;
         }
+
         body {
-          font-family: var(--font-body), ui-sans-serif, system-ui, -apple-system,
-            Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+          font-family:
+            var(--font-body),
+            ui-sans-serif,
+            system-ui,
+            -apple-system,
+            Segoe UI,
+            Roboto,
+            Helvetica,
+            Arial,
+            "Apple Color Emoji",
             "Segoe UI Emoji";
           background: hsl(var(--bg));
           color: hsl(var(--fg));
         }
-        .font-display {
-          font-family: var(--font-display), ui-serif, Georgia, Cambria,
-            "Times New Roman", Times, serif;
+
+        .font-display,
+        .font-brand {
+          font-family: var(--font-brand);
         }
+
         .font-body {
           font-family: var(--font-body), ui-sans-serif, system-ui;
         }
-        /* Lovable gradient helpers */
+
         .bg-ocean-gradient {
           background-image: linear-gradient(
             180deg,
@@ -76,15 +127,21 @@ export default function Page() {
             hsl(var(--ocean)) 100%
           );
         }
+
         .bg-wave-gradient {
-          background-image: radial-gradient(
+          background-image:
+            radial-gradient(
               1200px 600px at 30% 40%,
               rgba(30, 180, 236, 0.12),
               transparent 60%
             ),
-            linear-gradient(180deg, hsl(var(--navy-deep)) 0%, hsl(var(--ocean)) 100%);
+            linear-gradient(
+              180deg,
+              hsl(var(--navy-deep)) 0%,
+              hsl(var(--ocean)) 100%
+            );
         }
-        /* Soft float for arrow */
+
         @keyframes floaty {
           0% {
             transform: translate(-50%, 0);
@@ -99,12 +156,18 @@ export default function Page() {
             opacity: 0.55;
           }
         }
+
         .animate-float {
           animation: floaty 2.2s ease-in-out infinite;
         }
+
+        @media (prefers-reduced-motion: reduce) {
+          .animate-float {
+            animation: none !important;
+          }
+        }
       `}</style>
 
-      {/* NAVBAR (Lovable style) */}
       <nav
         className={[
           "fixed top-0 left-0 right-0 z-50 transition-all duration-500",
@@ -113,20 +176,18 @@ export default function Page() {
             : "bg-transparent py-6",
         ].join(" ")}
       >
-        <div className="container mx-auto px-6 flex items-center justify-between">
-          <span className="font-display text-2xl font-bold text-[hsl(var(--ice))] tracking-wide">
-            Havstraum
-          </span>
-          <a
-            href="mailto:info@havstraum.com"
+        <div className="container mx-auto px-6 flex items-center justify-between gap-4">
+          <AnimatedLogoBadge />
+          <button
+            type="button"
+            onClick={openContactForm}
             className="font-body text-sm text-[hsl(var(--ice))]/70 hover:text-[hsl(var(--teal))] transition-colors"
           >
             Contact
-          </a>
+          </button>
         </div>
       </nav>
 
-      {/* HERO (Lovable style) */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0">
           <Image
@@ -143,18 +204,20 @@ export default function Page() {
           <p className="font-body text-sm tracking-[0.3em] uppercase text-[hsl(var(--teal))] mb-6 opacity-90">
             Wave-powered desalination
           </p>
-          <h1 className="font-display text-5xl md:text-7xl lg:text-8xl font-bold text-[hsl(var(--ice))] leading-[1.05] mb-8">
+          <h1 className="font-display text-5xl md:text-7xl lg:text-8xl font-semibold text-[hsl(var(--ice))] leading-[1.05] mb-8">
             Turning ocean waves into reliable freshwater
           </h1>
           <p className="font-body text-lg md:text-xl text-[hsl(var(--ice))]/70 max-w-2xl mx-auto mb-12 leading-relaxed">
-            A new approach to desalination designed for long-term operation at sea.
+            A new approach to desalination designed for long-term operation at
+            sea.
           </p>
-          <a
-            href="mailto:info@havstraum.com"
+          <button
+            type="button"
+            onClick={openContactForm}
             className="inline-flex items-center gap-2 bg-[hsl(var(--teal))] text-[hsl(var(--navy-deep))] px-8 py-4 rounded-full font-body font-medium text-base transition-all duration-300 hover:brightness-110 hover:scale-105 active:scale-[1.02]"
           >
             Get in touch
-          </a>
+          </button>
         </div>
 
         <div className="absolute bottom-10 left-1/2 animate-float">
@@ -162,51 +225,47 @@ export default function Page() {
         </div>
       </section>
 
-      {/* WHY (Lovable style) */}
       <section className="py-28 md:py-36 bg-[hsl(var(--bg))]">
         <div className="container mx-auto px-6">
-          <div className="max-w-3xl mx-auto text-center mb-20">
+          <div className="max-w-4xl mx-auto text-center mb-20">
             <p className="font-body text-sm tracking-[0.25em] uppercase text-[hsl(var(--teal))] mb-4">
               The Challenge
             </p>
-            <h2 className="font-display text-4xl md:text-5xl font-bold text-[hsl(var(--fg))] mb-6">
+            <h2 className="font-display text-4xl md:text-5xl font-semibold text-[hsl(var(--fg))] mb-6">
               Why Havstraum
             </h2>
             <p className="font-body text-lg text-[hsl(var(--muted))] leading-relaxed">
-              Freshwater scarcity is increasing across coastal and island regions, while existing
-              desalination solutions remain energy-intensive and difficult to maintain offshore.
+              Water stress is increasing globally, driven by population growth
+              and rising demand from water-intensive industries such as
+              agriculture, manufacturing, and energy. In coastal and island
+              regions, this challenge is further compounded by limited access to
+              reliable freshwater infrastructure.
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             <WhyCard
               icon={<DropletsIcon className="w-6 h-6 text-[hsl(var(--teal))]" />}
-              title="Freshwater Scarcity"
-              description="Coastal and island regions face chronic freshwater scarcity, while existing desalination solutions remain energy-intensive and expensive."
+              title="Freshwater Demand"
+              description="Water stress is increasing across regions worldwide, with demand from both communities and industry outpacing supply. In coastal and island regions, this gap is especially critical, where access to reliable freshwater remains limited."
             />
             <WhyCard
               icon={<ZapIcon className="w-6 h-6 text-[hsl(var(--teal))]" />}
               title="Untapped Energy"
-              description="Ocean waves offer a constant and abundant source of energy, yet reliability has limited their use in water production."
+              description="Ocean waves offer a constant and abundant source of energy. Yet their use in desalination remains limited due to challenges in reliability and long-term operation at sea."
             />
             <WhyCard
               icon={<GlobeIcon className="w-6 h-6 text-[hsl(var(--teal))]" />}
               title="Our Purpose"
-              description="Havstraum exists to unlock the potential of wave energy for sustainable freshwater production worldwide."
+              description="Havstraum exists to unlock reliable wave-powered desalination — enabling scalable freshwater production for both industrial and off-grid applications."
             />
           </div>
         </div>
       </section>
 
-      {/* APPROACH (Lovable style) */}
       <section className="relative py-28 md:py-36 overflow-hidden">
         <div className="absolute inset-0">
-          <Image
-            src="/wave-pattern.jpg"
-            alt=""
-            fill
-            className="object-cover"
-          />
+          <Image src="/wave-pattern.jpg" alt="" fill className="object-cover" />
           <div className="absolute inset-0 bg-ocean-gradient opacity-90" />
         </div>
 
@@ -216,14 +275,15 @@ export default function Page() {
               <p className="font-body text-sm tracking-[0.25em] uppercase text-[hsl(var(--teal))] mb-4">
                 Our Approach
               </p>
-              <h2 className="font-display text-4xl md:text-5xl font-bold text-[hsl(var(--ice))] mb-8 leading-tight">
+              <h2 className="font-display text-4xl md:text-5xl font-semibold text-[hsl(var(--ice))] mb-8 leading-tight">
                 Rethinking mechanical systems for ocean conditions
               </h2>
               <p className="font-body text-lg text-[hsl(var(--ice))]/70 leading-relaxed">
-                Havstraum is developing a wave-powered desalination concept focused on how energy is
-                transferred, controlled, and sustained in marine environments. By rethinking
-                mechanical systems for ocean conditions, we aim to enable more robust and
-                long-lasting freshwater production offshore.
+                Havstraum is developing a wave-powered desalination concept
+                focused on how energy is transferred, controlled, and sustained
+                in marine environments. By rethinking mechanical systems for
+                ocean conditions, we aim to enable more robust and long-lasting
+                freshwater production offshore.
               </p>
             </div>
 
@@ -238,7 +298,7 @@ export default function Page() {
                   key={stat.label}
                   className="p-6 rounded-2xl bg-[hsl(var(--ice))]/5 border border-[hsl(var(--ice))]/10 backdrop-blur-sm"
                 >
-                  <p className="font-display text-3xl font-bold text-[hsl(var(--teal))] mb-2">
+                  <p className="font-display text-3xl font-semibold text-[hsl(var(--teal))] mb-2">
                     {stat.value}
                   </p>
                   <p className="font-body text-sm text-[hsl(var(--ice))]/60">
@@ -251,14 +311,13 @@ export default function Page() {
         </div>
       </section>
 
-      {/* DIFFERENCE (Lovable style) */}
       <section className="py-28 md:py-36 bg-[hsl(var(--bg))]">
         <div className="container mx-auto px-6">
           <div className="max-w-3xl mx-auto text-center mb-20">
             <p className="font-body text-sm tracking-[0.25em] uppercase text-[hsl(var(--teal))] mb-4">
               Our Edge
             </p>
-            <h2 className="font-display text-4xl md:text-5xl font-bold text-[hsl(var(--fg))]">
+            <h2 className="font-display text-4xl md:text-5xl font-semibold text-[hsl(var(--fg))]">
               What makes us different
             </h2>
           </div>
@@ -271,8 +330,8 @@ export default function Page() {
             />
             <FeatureRow
               icon={<WrenchIcon className="w-6 h-6 text-[hsl(var(--ice))]" />}
-              title="Fewer failure points"
-              description="Focused on reducing failure-prone components for higher system reliability."
+              title="Reliability at the core"
+              description="Designed for dependable offshore operation, with a simpler system architecture that supports long-term performance and easier maintenance."
             />
             <FeatureRow
               icon={<SettingsIcon className="w-6 h-6 text-[hsl(var(--ice))]" />}
@@ -288,91 +347,262 @@ export default function Page() {
         </div>
       </section>
 
-      {/* VISION (Lovable style) */}
       <section className="py-28 md:py-36 bg-wave-gradient relative overflow-hidden">
         <div className="container mx-auto px-6 relative z-10">
-          <div className="max-w-4xl mx-auto text-center">
-            <p className="font-body text-sm tracking-[0.25em] uppercase text-[hsl(var(--teal))] mb-6">
-              Our Vision
-            </p>
-            <h2 className="font-display text-3xl md:text-5xl lg:text-6xl font-bold text-[hsl(var(--ice))] leading-tight mb-10">
-              A future where coastal regions produce freshwater directly from the ocean
-            </h2>
-            <p className="font-body text-lg text-[hsl(var(--ice))]/60 max-w-2xl mx-auto leading-relaxed mb-6">
-              Reliably, sustainably, and without dependence on external energy infrastructure.
-            </p>
-
-            <div className="w-16 h-px bg-[hsl(var(--teal))]/40 mx-auto my-12" />
-
-            <div>
-              <p className="font-body text-sm tracking-[0.25em] uppercase text-[hsl(var(--teal))] mb-4">
-                Our Mission
-              </p>
-              <p className="font-display text-xl md:text-2xl text-[hsl(var(--ice))]/80 italic max-w-3xl mx-auto leading-relaxed">
-                To develop and enable desalination systems that make wave-powered water production
-                practical, durable, and scalable.
-              </p>
-            </div>
+          <div className="max-w-5xl mx-auto grid gap-8 md:grid-cols-2">
+            <VisionMissionCard
+              eyebrow="Vision"
+              statement="A future where freshwater is produced directly from the ocean — reliably, sustainably, and at scale."
+              subtext="Enabling a new paradigm of decentralized, ocean-based water production without dependence on external energy infrastructure."
+            />
+            <VisionMissionCard
+              eyebrow="Mission"
+              statement="To develop and enable wave-powered desalination systems that are reliable, durable, and scalable for continuous operation at sea."
+              subtext="Focused on durability-first design to ensure consistent performance in harsh marine environments."
+            />
           </div>
         </div>
       </section>
 
-      {/* CONTACT (Lovable style) */}
       <section className="py-28 md:py-36 bg-[hsl(var(--bg))]">
         <div className="container mx-auto px-6">
           <div className="max-w-3xl mx-auto text-center mb-16">
             <p className="font-body text-sm tracking-[0.25em] uppercase text-[hsl(var(--teal))] mb-4">
               Collaborate
             </p>
-            <h2 className="font-display text-4xl md:text-5xl font-bold text-[hsl(var(--fg))] mb-6">
-              Let's build together
+            <h2 className="font-display text-4xl md:text-5xl font-semibold text-[hsl(var(--fg))] mb-6">
+              Let&apos;s build together
             </h2>
             <p className="font-body text-lg text-[hsl(var(--muted))] leading-relaxed">
-              We are interested in connecting with experts and partners who share our vision.
+              We are interested in connecting with experts and partners who
+              share our vision.
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto mb-16">
             <ContactCard
-              icon={<FlaskConicalIcon className="w-6 h-6 text-[hsl(var(--teal))] shrink-0 mt-0.5" />}
+              icon={
+                <FlaskConicalIcon className="w-6 h-6 text-[hsl(var(--teal))] shrink-0 mt-0.5" />
+              }
               title="Research Institutions"
               description="Academic and research partners exploring wave energy and desalination."
             />
             <ContactCard
-              icon={<UsersIcon className="w-6 h-6 text-[hsl(var(--teal))] shrink-0 mt-0.5" />}
+              icon={
+                <UsersIcon className="w-6 h-6 text-[hsl(var(--teal))] shrink-0 mt-0.5" />
+              }
               title="Industry Experts"
               description="Desalination and water system professionals seeking innovative partnerships."
             />
           </div>
 
           <div className="text-center">
-            <a
-              href="mailto:info@havstraum.com"
+            <button
+              type="button"
+              onClick={openContactForm}
               className="inline-flex items-center gap-3 bg-ocean-gradient text-[hsl(var(--ice))] px-10 py-4 rounded-full font-body font-medium text-base transition-all duration-300 hover:brightness-110 hover:scale-105 active:scale-[1.02]"
             >
               <MailIcon className="w-5 h-5" />
-              info@havstraum.com
-            </a>
+              Contact us
+            </button>
           </div>
         </div>
       </section>
 
-      {/* FOOTER (Lovable style) */}
       <footer className="py-10 bg-[hsl(var(--navy-deep))] border-t border-[hsl(var(--ice))]/10">
         <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <span className="font-display text-lg font-semibold text-[hsl(var(--ice))]">
             Havstraum
           </span>
           <p className="font-body text-sm text-[hsl(var(--ice))]/40">
-             {new Date().getFullYear()} Havstraum. All rights reserved.
+            {new Date().getFullYear()} Havstraum. All rights reserved.
           </p>
         </div>
       </footer>
+
+      <ContactModal
+        isOpen={isContactOpen}
+        form={contactForm}
+        onClose={closeContactForm}
+        onSubmit={handleContactSubmit}
+        onChange={(field, value) =>
+          setContactForm((current) => ({
+            ...current,
+            [field]: value,
+          }))
+        }
+      />
     </div>
   );
 }
 
-/* ---------- Shared UI ---------- */
+function AnimatedLogoBadge() {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.currentTime = 0;
+
+    const playPromise = video.play();
+    if (playPromise) {
+      playPromise.catch(() => {
+        // ignore autoplay issues
+      });
+    }
+  }, []);
+
+  return (
+    <div
+      className="inline-flex items-center rounded-[24px] bg-[#d9f3fb] px-4 py-3 shadow-sm ring-1 ring-[#7dd3ea]/40 backdrop-blur-sm"
+      aria-label="Havstraum"
+    >
+      <div className="relative h-[92px] w-[320px] overflow-hidden rounded-[18px] bg-white">
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          preload="auto"
+          className="absolute left-1/2 top-[45%] w-[350px] max-w-none -translate-x-1/2 -translate-y-1/2 object-contain"
+        >
+          <source src="/brand/havstraum-logo-dark.mp4" type="video/mp4" />
+        </video>
+      </div>
+    </div>
+  );
+}
+
+function ContactModal({
+  isOpen,
+  form,
+  onClose,
+  onSubmit,
+  onChange,
+}: {
+  isOpen: boolean;
+  form: ContactFormState;
+  onClose: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onChange: (field: keyof ContactFormState, value: string) => void;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="contact-modal-title"
+    >
+      <button
+        type="button"
+        aria-label="Close contact form"
+        className="absolute inset-0 bg-[hsl(var(--navy-deep))]/70 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      <div className="relative z-10 w-full max-w-2xl rounded-[32px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 md:p-8 shadow-2xl">
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <p className="font-body text-sm tracking-[0.25em] uppercase text-[hsl(var(--teal))] mb-3">
+              Contact
+            </p>
+            <h3
+              id="contact-modal-title"
+              className="font-display text-3xl md:text-4xl font-semibold text-[hsl(var(--fg))]"
+            >
+              Get in touch
+            </h3>
+            <p className="mt-3 font-body text-sm md:text-base text-[hsl(var(--muted))] leading-relaxed max-w-xl">
+              Share your name, organisation email, and message. On submit, the
+              message opens in your email app ready to send to Havstraum.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[hsl(var(--border))] text-[hsl(var(--muted))] transition-colors hover:border-[hsl(var(--teal))]/40 hover:text-[hsl(var(--fg))]"
+            aria-label="Close"
+          >
+            <CloseIcon className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={onSubmit} className="space-y-5">
+          <div className="grid gap-5 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block font-body text-sm font-medium text-[hsl(var(--fg))]">
+                Name
+              </span>
+              <input
+                type="text"
+                value={form.name}
+                onChange={(event) => onChange("name", event.target.value)}
+                placeholder="Your name"
+                required
+                className="w-full rounded-2xl border border-[hsl(var(--border))] bg-white px-4 py-3 font-body text-[hsl(var(--fg))] outline-none transition focus:border-[hsl(var(--teal))] focus:ring-4 focus:ring-[hsl(var(--teal))]/10"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block font-body text-sm font-medium text-[hsl(var(--fg))]">
+                Organisation email
+              </span>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(event) => onChange("email", event.target.value)}
+                placeholder="name@organisation.com"
+                required
+                className="w-full rounded-2xl border border-[hsl(var(--border))] bg-white px-4 py-3 font-body text-[hsl(var(--fg))] outline-none transition focus:border-[hsl(var(--teal))] focus:ring-4 focus:ring-[hsl(var(--teal))]/10"
+              />
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="mb-2 block font-body text-sm font-medium text-[hsl(var(--fg))]">
+              Message
+            </span>
+            <textarea
+              value={form.message}
+              onChange={(event) => onChange("message", event.target.value)}
+              placeholder="Tell us a bit about your enquiry"
+              rows={6}
+              required
+              className="w-full rounded-[24px] border border-[hsl(var(--border))] bg-white px-4 py-3 font-body text-[hsl(var(--fg))] outline-none transition focus:border-[hsl(var(--teal))] focus:ring-4 focus:ring-[hsl(var(--teal))]/10"
+            />
+          </label>
+
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="font-body text-sm text-[hsl(var(--muted))]">
+              This keeps the same no-backend setup and pre-fills the email for
+              the user.
+            </p>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex items-center justify-center rounded-full border border-[hsl(var(--border))] px-6 py-3 font-body font-medium text-[hsl(var(--fg))] transition hover:border-[hsl(var(--teal))]/40 hover:bg-[hsl(var(--teal))]/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center rounded-full bg-ocean-gradient px-6 py-3 font-body font-medium text-[hsl(var(--ice))] transition hover:brightness-110"
+              >
+                Send enquiry
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 function WhyCard({
   icon,
@@ -384,13 +614,16 @@ function WhyCard({
   description: string;
 }) {
   return (
-    <div className="group p-8 rounded-2xl bg-[hsl(var(--card))] border border-[hsl(var(--border))] hover:border-[hsl(var(--teal))]/30 transition-all duration-500 hover:shadow-lg hover:shadow-[hsl(var(--teal))]/5"
-    >
+    <div className="group p-8 rounded-2xl bg-[hsl(var(--card))] border border-[hsl(var(--border))] hover:border-[hsl(var(--teal))]/30 transition-all duration-500 hover:shadow-lg hover:shadow-[hsl(var(--teal))]/5">
       <div className="w-12 h-12 rounded-xl bg-[hsl(var(--teal))]/10 flex items-center justify-center mb-6 group-hover:bg-[hsl(var(--teal))]/20 transition-colors">
         {icon}
       </div>
-      <h3 className="font-display text-xl font-semibold text-[hsl(var(--fg))] mb-3">{title}</h3>
-      <p className="font-body text-[hsl(var(--muted))] leading-relaxed text-sm">{description}</p>
+      <h3 className="font-display text-xl font-semibold text-[hsl(var(--fg))] mb-3">
+        {title}
+      </h3>
+      <p className="font-body text-[hsl(var(--muted))] leading-relaxed text-sm">
+        {description}
+      </p>
     </div>
   );
 }
@@ -405,15 +638,42 @@ function FeatureRow({
   description: string;
 }) {
   return (
-    <div className="group flex gap-5 p-8 rounded-2xl hover:bg-[hsl(var(--card))] hover:shadow-lg hover:shadow-[hsl(var(--teal))]/5 border border-transparent hover:border-[hsl(var(--border))] transition-all duration-500"
-    >
+    <div className="group flex gap-5 p-8 rounded-2xl hover:bg-[hsl(var(--card))] hover:shadow-lg hover:shadow-[hsl(var(--teal))]/5 border border-transparent hover:border-[hsl(var(--border))] transition-all duration-500">
       <div className="w-14 h-14 shrink-0 rounded-2xl bg-ocean-gradient flex items-center justify-center">
         {icon}
       </div>
       <div>
-        <h3 className="font-display text-xl font-semibold text-[hsl(var(--fg))] mb-2">{title}</h3>
-        <p className="font-body text-[hsl(var(--muted))] text-sm leading-relaxed">{description}</p>
+        <h3 className="font-display text-xl font-semibold text-[hsl(var(--fg))] mb-2">
+          {title}
+        </h3>
+        <p className="font-body text-[hsl(var(--muted))] text-sm leading-relaxed">
+          {description}
+        </p>
       </div>
+    </div>
+  );
+}
+
+function VisionMissionCard({
+  eyebrow,
+  statement,
+  subtext,
+}: {
+  eyebrow: string;
+  statement: string;
+  subtext: string;
+}) {
+  return (
+    <div className="rounded-[28px] border border-[hsl(var(--ice))]/12 bg-[hsl(var(--ice))]/5 p-8 md:p-10 backdrop-blur-sm">
+      <p className="font-body text-sm tracking-[0.25em] uppercase text-[hsl(var(--teal))] mb-6">
+        {eyebrow}
+      </p>
+      <h3 className="font-display text-2xl md:text-3xl lg:text-[2.125rem] font-semibold text-[hsl(var(--ice))] leading-[1.25] mb-5">
+        {statement}
+      </h3>
+      <p className="font-body text-base md:text-lg text-[hsl(var(--ice))]/68 leading-relaxed">
+        {subtext}
+      </p>
     </div>
   );
 }
@@ -431,14 +691,16 @@ function ContactCard({
     <div className="flex gap-4 items-start p-6 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
       {icon}
       <div>
-        <h3 className="font-display text-lg font-semibold text-[hsl(var(--fg))] mb-1">{title}</h3>
-        <p className="font-body text-sm text-[hsl(var(--muted))]">{description}</p>
+        <h3 className="font-display text-lg font-semibold text-[hsl(var(--fg))] mb-1">
+          {title}
+        </h3>
+        <p className="font-body text-sm text-[hsl(var(--muted))]">
+          {description}
+        </p>
       </div>
     </div>
   );
 }
-
-/* ---------- Lucide-style inline icons (no dependency) ---------- */
 
 function IconBase({
   className,
@@ -468,6 +730,15 @@ function ArrowDownIcon({ className }: { className?: string }) {
     <IconBase className={className}>
       <path d="M12 5v14" />
       <path d="m19 12-7 7-7-7" />
+    </IconBase>
+  );
+}
+
+function CloseIcon({ className }: { className?: string }) {
+  return (
+    <IconBase className={className}>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
     </IconBase>
   );
 }
@@ -512,7 +783,6 @@ function ShieldIcon({ className }: { className?: string }) {
 function WrenchIcon({ className }: { className?: string }) {
   return (
     <IconBase className={className}>
-      {/* lucide "wrench" */}
       <path d="M14.7 6.3a5 5 0 0 0-6.4 6.4L2 19l3 3 6.3-6.3a5 5 0 0 0 6.4-6.4l-3 3-3-3 3-3Z" />
     </IconBase>
   );
@@ -521,8 +791,15 @@ function WrenchIcon({ className }: { className?: string }) {
 function SettingsIcon({ className }: { className?: string }) {
   return (
     <IconBase className={className}>
-      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.6 1Z" />
+      <path d="M12 3v3" />
+      <path d="M12 18v3" />
+      <path d="M3 12h3" />
+      <path d="M18 12h3" />
+      <path d="m5.64 5.64 2.12 2.12" />
+      <path d="m16.24 16.24 2.12 2.12" />
+      <path d="m5.64 18.36 2.12-2.12" />
+      <path d="m16.24 7.76 2.12-2.12" />
+      <circle cx="12" cy="12" r="3" />
     </IconBase>
   );
 }
@@ -530,11 +807,10 @@ function SettingsIcon({ className }: { className?: string }) {
 function ScalingIcon({ className }: { className?: string }) {
   return (
     <IconBase className={className}>
-      {/* lucide "expand" */}
-      <path d="M15 3h6v6" />
-      <path d="M9 21H3v-6" />
-      <path d="M21 3l-7 7" />
-      <path d="M3 21l7-7" />
+      <path d="M4 20h16" />
+      <path d="M6 16V8" />
+      <path d="M12 16V4" />
+      <path d="M18 16v-6" />
     </IconBase>
   );
 }
@@ -542,8 +818,8 @@ function ScalingIcon({ className }: { className?: string }) {
 function MailIcon({ className }: { className?: string }) {
   return (
     <IconBase className={className}>
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <path d="m3 7 9 6 9-6" />
+      <path d="M4 6h16v12H4z" />
+      <path d="m22 7-10 7L2 7" />
     </IconBase>
   );
 }
@@ -551,10 +827,10 @@ function MailIcon({ className }: { className?: string }) {
 function UsersIcon({ className }: { className?: string }) {
   return (
     <IconBase className={className}>
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.9" />
-      <path d="M16 3.1a4 4 0 0 1 0 7.8" />
+      <path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </IconBase>
   );
 }
@@ -562,7 +838,7 @@ function UsersIcon({ className }: { className?: string }) {
 function FlaskConicalIcon({ className }: { className?: string }) {
   return (
     <IconBase className={className}>
-      <path d="M10 2v6l-6 10a2 2 0 0 0 1.7 3h12.6A2 2 0 0 0 20 18l-6-10V2" />
+      <path d="M10 2v6l-6 10a2 2 0 0 0 1.7 3h12.6A2 2 0 0 0 20 18L14 8V2" />
       <path d="M8.5 2h7" />
       <path d="M7 14h10" />
     </IconBase>
