@@ -1,7 +1,7 @@
 "use client";
 
-import type { FormEvent, ReactNode } from "react";
-import { useEffect, useState } from "react";
+import type { FormEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Inter } from "next/font/google";
 
@@ -44,7 +44,8 @@ export default function Page() {
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [contactForm, setContactForm] =
     useState<ContactFormState>(initialFormState);
-
+  const systemSizesRef = useRef<HTMLDivElement | null>(null);
+  const [systemSizeProgress, setSystemSizeProgress] = useState(0);
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -78,6 +79,57 @@ export default function Page() {
     };
   }, [isContactOpen]);
 
+  useEffect(() => {
+    const element = systemSizesRef.current;
+    if (!element) return;
+
+    let frameId = 0;
+    let hasStarted = false;
+    const duration = 1500;
+
+    const startCountUp = () => {
+      if (hasStarted) return;
+      hasStarted = true;
+
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        setSystemSizeProgress(1);
+        return;
+      }
+
+      const startTime = performance.now();
+      const easeOutCubic = (progress: number) =>
+        1 - Math.pow(1 - progress, 3);
+
+      const tick = (now: number) => {
+        const progress = Math.min((now - startTime) / duration, 1);
+        setSystemSizeProgress(easeOutCubic(progress));
+
+        if (progress < 1) {
+          frameId = requestAnimationFrame(tick);
+        }
+      };
+
+      frameId = requestAnimationFrame(tick);
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          startCountUp();
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.35 },
+    );
+
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+      if (frameId) cancelAnimationFrame(frameId);
+    };
+  }, []);
+
   const openContactForm = () => setIsContactOpen(true);
   const closeContactForm = () => setIsContactOpen(false);
 
@@ -104,6 +156,29 @@ export default function Page() {
 
     setContactForm(initialFormState);
     closeContactForm();
+  };
+
+  const handleInteractiveCardMove = (event: ReactMouseEvent<HTMLElement>) => {
+    const card = event.currentTarget;
+    const rect = card.getBoundingClientRect();
+    const localX = event.clientX - rect.left;
+    const localY = event.clientY - rect.top;
+    const tiltY = ((localX / rect.width - 0.5) * 6).toFixed(2);
+    const tiltX = ((0.5 - localY / rect.height) * 4).toFixed(2);
+
+    card.style.setProperty("--mouse-x", `${localX}px`);
+    card.style.setProperty("--mouse-y", `${localY}px`);
+    card.style.setProperty("--tilt-x", `${tiltX}deg`);
+    card.style.setProperty("--tilt-y", `${tiltY}deg`);
+  };
+
+  const handleInteractiveCardLeave = (event: ReactMouseEvent<HTMLElement>) => {
+    const card = event.currentTarget;
+
+    card.style.setProperty("--mouse-x", "50%");
+    card.style.setProperty("--mouse-y", "50%");
+    card.style.setProperty("--tilt-x", "0deg");
+    card.style.setProperty("--tilt-y", "0deg");
   };
 
   return (
@@ -228,6 +303,163 @@ export default function Page() {
             );
         }
 
+        .interactive-card {
+          position: relative;
+          overflow: hidden;
+          isolation: isolate;
+          --mouse-x: 50%;
+          --mouse-y: 50%;
+        }
+
+        .interactive-card::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          z-index: 0;
+          pointer-events: none;
+          background: radial-gradient(
+            420px circle at var(--mouse-x) var(--mouse-y),
+            rgba(97, 211, 255, 0.28),
+            rgba(14, 142, 191, 0.12) 34%,
+            transparent 68%
+          );
+          opacity: 0;
+          transition: opacity 220ms ease;
+        }
+
+        .interactive-card:hover::before {
+          opacity: 1;
+        }
+
+        .interactive-card > * {
+          position: relative;
+          z-index: 1;
+        }
+
+        .overview-statement {
+          --tilt-x: 0deg;
+          --tilt-y: 0deg;
+          --mouse-x: 50%;
+          --mouse-y: 50%;
+          transform: perspective(900px) rotateX(var(--tilt-x))
+            rotateY(var(--tilt-y));
+          transform-style: preserve-3d;
+          will-change: transform;
+        }
+
+        .overview-statement::before {
+          background:
+            radial-gradient(
+              560px circle at var(--mouse-x) var(--mouse-y),
+              rgba(97, 211, 255, 0.34),
+              rgba(14, 142, 191, 0.16) 32%,
+              transparent 68%
+            ),
+            linear-gradient(
+              135deg,
+              rgba(255, 255, 255, 0.105),
+              rgba(255, 255, 255, 0.035)
+            );
+        }
+
+        .overview-statement::after {
+          content: "";
+          position: absolute;
+          inset: -1px;
+          z-index: 0;
+          pointer-events: none;
+          border-radius: inherit;
+          background: linear-gradient(
+            110deg,
+            transparent 0%,
+            transparent 38%,
+            rgba(255, 255, 255, 0.46) 48%,
+            rgba(97, 211, 255, 0.46) 52%,
+            transparent 64%,
+            transparent 100%
+          );
+          opacity: 0;
+          transform: translateX(-120%);
+        }
+
+        .overview-statement:hover::after {
+          animation: statementSweep 1.15s ease forwards;
+        }
+
+        .overview-statement-text {
+          display: block;
+          transition:
+            transform 260ms ease,
+            letter-spacing 260ms ease,
+            text-shadow 260ms ease;
+        }
+
+        .overview-statement:hover .overview-statement-text {
+          transform: translateZ(28px);
+          letter-spacing: -0.045em;
+          text-shadow: 0 16px 42px rgba(97, 211, 255, 0.2);
+        }
+
+        .overview-keyword {
+          color: hsl(var(--ice));
+          transition:
+            color 260ms ease,
+            text-shadow 260ms ease;
+        }
+
+        .overview-statement:hover .overview-keyword {
+          color: rgba(126, 224, 255, 0.98);
+          text-shadow: 0 0 24px rgba(97, 211, 255, 0.45);
+        }
+
+        .overview-corner {
+          position: absolute;
+          width: 18px;
+          height: 18px;
+          border-style: solid;
+          border-width: 0;
+          border-color: rgba(97, 211, 255, 0.48);
+          opacity: 0;
+          transition:
+            opacity 260ms ease,
+            transform 260ms ease;
+        }
+
+        .overview-corner-top-left {
+          left: 20px;
+          top: 20px;
+          border-left-width: 1px;
+          border-top-width: 1px;
+          transform: translate(8px, 8px);
+        }
+
+        .overview-corner-bottom-right {
+          right: 20px;
+          bottom: 20px;
+          border-right-width: 1px;
+          border-bottom-width: 1px;
+          transform: translate(-8px, -8px);
+        }
+
+        .overview-statement:hover .overview-corner {
+          opacity: 1;
+          transform: translate(0, 0);
+        }
+
+        @keyframes statementSweep {
+          0% {
+            opacity: 0;
+            transform: translateX(-120%);
+          }
+          22% {
+            opacity: 0.5;
+          }
+          100% {
+            opacity: 0;
+            transform: translateX(120%);
+          }
+        }
+
         @keyframes floaty {
           0% {
             transform: translate(-50%, 0);
@@ -250,6 +482,16 @@ export default function Page() {
         @media (prefers-reduced-motion: reduce) {
           .animate-float {
             animation: none !important;
+          }
+
+          .overview-statement,
+          .overview-statement-text {
+            transform: none !important;
+          }
+
+          .overview-statement::after {
+            animation: none !important;
+            display: none;
           }
         }
       `}</style>
@@ -299,12 +541,9 @@ export default function Page() {
                         key={item.targetId}
                         type="button"
                         onClick={() => handleNavSelection(item)}
-                        className="group flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left font-body type-body text-[hsl(var(--ice))]/78 transition-colors hover:bg-[hsl(var(--ice))]/8 hover:text-[hsl(var(--teal))]"
+                        className="group flex w-full items-center rounded-2xl px-4 py-3 text-left font-body type-body text-[hsl(var(--ice))]/78 transition-colors hover:bg-[hsl(var(--ice))]/8 hover:text-[hsl(var(--teal))]"
                       >
                         <span>{item.label}</span>
-                        <span className="text-[hsl(var(--ice))]/28 transition-colors group-hover:text-[hsl(var(--teal))]">
-                          ↓
-                        </span>
                       </button>
                     ))}
                   </div>
@@ -339,8 +578,10 @@ export default function Page() {
           <p className="font-body type-section-header text-[16px] md:text-[18px] tracking-[0.28em] text-[hsl(var(--teal))] mb-10 opacity-90">
             Wave-powered desalination
           </p>
-          <h1 className="font-display type-title text-[64px] sm:text-[78px] md:text-[104px] lg:text-[124px] leading-[0.96] text-[hsl(var(--ice))] max-w-[860px] mx-auto mb-10">
-            Reliable Desalination. At Sea
+          <h1 className="font-display type-title text-[72px] sm:text-[96px] md:text-[132px] lg:text-[150px] xl:text-[164px] leading-[0.92] text-[hsl(var(--ice))] max-w-[1120px] mx-auto mb-10 tracking-[-0.045em]">
+            Reliable<br />
+            Desalination.<br />
+            At Sea
           </h1>
           <p className="font-body type-subheading text-[22px] md:text-[28px] text-[hsl(var(--ice))]/70 max-w-4xl mx-auto mb-14 leading-[1.35]">
             A new approach to desalination designed for long-term operation at
@@ -365,10 +606,18 @@ export default function Page() {
         className="scroll-mt-24 py-20 md:py-24 bg-[hsl(var(--navy))]"
       >
         <div className="container mx-auto px-6">
-          <div className="max-w-5xl mx-auto rounded-[30px] border border-[hsl(var(--ice))]/10 bg-[hsl(var(--ice))]/6 px-8 py-8 text-center backdrop-blur-sm">
-            <p className="font-display type-heading text-[hsl(var(--ice))] text-[28px] md:text-[38px] leading-[1.15] tracking-[-0.03em]">
-              Havstraum operates at the intersection of water stress, coastal
-              needs, and untapped wave energy.
+          <div
+            onMouseMove={handleInteractiveCardMove}
+            onMouseLeave={handleInteractiveCardLeave}
+            className="overview-statement interactive-card mx-auto max-w-5xl rounded-[30px] border border-[hsl(var(--ice))]/10 bg-[hsl(var(--ice))]/6 px-8 py-8 text-center backdrop-blur-sm transition-[border-color,box-shadow,transform] duration-300 hover:border-[rgba(97,211,255,0.42)] hover:shadow-[0_34px_110px_rgba(56,189,248,0.16)]"
+          >
+            <span className="overview-corner overview-corner-top-left" />
+            <span className="overview-corner overview-corner-bottom-right" />
+            <p className="overview-statement-text font-display type-heading text-[hsl(var(--ice))] text-[28px] md:text-[38px] leading-[1.15] tracking-[-0.03em]">
+              Havstraum operates at the intersection of{" "}
+              <span className="overview-keyword">water stress</span>,{" "}
+              <span className="overview-keyword">coastal needs</span>, and{" "}
+              <span className="overview-keyword">untapped wave energy</span>.
             </p>
           </div>
         </div>
@@ -376,15 +625,15 @@ export default function Page() {
 
       <section
         id="system-layout"
-        className="relative scroll-mt-24 overflow-hidden bg-[hsl(var(--bg))] py-20 md:py-28"
+        className="relative scroll-mt-24 overflow-hidden bg-[hsl(var(--bg))] py-10 md:py-12"
       >
         <div className="absolute inset-x-0 top-0 h-32 bg-[linear-gradient(180deg,rgba(4,31,73,0.24)_0%,rgba(4,31,73,0.12)_36%,rgba(4,31,73,0.04)_68%,rgba(4,31,73,0)_100%)]" />
         <div className="container relative z-10 mx-auto px-6">
-          <div className="mx-auto mb-12 max-w-3xl text-center">
-            <p className="font-body type-section-header text-[hsl(var(--teal))] mb-4">
+          <div className="mx-auto mb-8 max-w-3xl text-center">
+            <p className="font-body type-section-header text-[hsl(var(--teal))] mb-3">
               System Layout
             </p>
-            <h2 className="font-display type-subtitle text-[hsl(var(--fg))] mb-6">
+            <h2 className="font-display type-subtitle text-[hsl(var(--fg))] mb-4">
               Modular offshore production connected to onshore freshwater use
             </h2>
             <p className="font-body type-body text-[hsl(var(--muted))]">
@@ -396,7 +645,7 @@ export default function Page() {
             </p>
           </div>
 
-          <div className="mx-auto max-w-7xl overflow-hidden rounded-[34px] border border-[hsl(var(--border))]/45 bg-[hsl(var(--card))] shadow-[0_26px_90px_rgba(4,31,73,0.16)]">
+          <div className="mx-auto max-w-3xl overflow-hidden rounded-[28px] border border-[hsl(var(--border))]/45 bg-[hsl(var(--card))] shadow-[0_20px_60px_rgba(4,31,73,0.14)]">
             <Image
               src="/SystemLayout_v7.png"
               alt="Havstraum offshore wave-powered desalination system layout showing buoy units, central reverse osmosis unit, pipelines, brine outflow, and onshore storage"
@@ -406,7 +655,7 @@ export default function Page() {
             />
           </div>
 
-          <div className="mx-auto mt-8 grid max-w-5xl gap-5 md:grid-cols-3">
+          <div className="mx-auto mt-6 grid max-w-4xl gap-4 md:grid-cols-3">
             {[
               {
                 title: "Wave-powered units",
@@ -423,9 +672,9 @@ export default function Page() {
             ].map((item) => (
               <article
                 key={item.title}
-                className="rounded-[26px] border border-[hsl(var(--border))]/35 bg-[hsl(var(--card))] p-6 shadow-[0_18px_55px_rgba(4,31,73,0.08)]"
+                className="rounded-[22px] border border-[hsl(var(--border))]/35 bg-[hsl(var(--card))] p-5 shadow-[0_14px_40px_rgba(4,31,73,0.07)]"
               >
-                <h3 className="font-display text-[22px] leading-tight tracking-[-0.03em] text-[hsl(var(--fg))] mb-3">
+                <h3 className="font-display text-[19px] leading-tight tracking-[-0.03em] text-[hsl(var(--fg))] mb-2">
                   {item.title}
                 </h3>
                 <p className="font-body type-caption text-[hsl(var(--muted))] leading-relaxed">
@@ -449,7 +698,7 @@ export default function Page() {
         <div className="relative z-10 container mx-auto px-6">
           <div className="grid md:grid-cols-2 gap-16 items-center max-w-6xl mx-auto">
             <div>
-              <p className="font-body type-section-header text-[hsl(var(--teal))] mb-4">
+              <p className="font-body type-section-header text-[hsl(var(--teal))] mb-3">
                 Our Approach
               </p>
               <h2 className="font-display type-subtitle text-[hsl(var(--ice))]">
@@ -506,7 +755,7 @@ export default function Page() {
 
         <div className="relative z-10 container mx-auto px-6">
           <div className="max-w-5xl mx-auto text-center mb-14 md:mb-18">
-            <p className="font-body type-section-header text-[hsl(var(--teal))] mb-4">
+            <p className="font-body type-section-header text-[hsl(var(--teal))] mb-3">
               Market Strategy
             </p>
             <h2 className="font-display type-subtitle text-[hsl(var(--ice))] mb-6">
@@ -523,33 +772,45 @@ export default function Page() {
             <p className="font-body type-section-header text-[hsl(var(--teal))] text-center mb-10">
               Typical system sizes
             </p>
-            <div className="grid gap-6 md:grid-cols-3">
+            <div ref={systemSizesRef} className="grid gap-6 md:grid-cols-3">
               {[
                 {
-                  value: "~100 m³/day",
+                  min: 100,
                   label: "Entry deployment",
                 },
                 {
-                  value: "~200–300 m³/day",
+                  min: 200,
+                  max: 300,
                   label: "Expansion deployment",
                 },
                 {
-                  value: "~400–500 m³/day",
+                  min: 400,
+                  max: 500,
                   label: "Scale deployment",
                 },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-[28px] border border-[hsl(var(--ice))]/10 bg-[rgba(255,255,255,0.04)] px-6 py-8 text-center"
-                >
-                  <p className="font-display whitespace-nowrap text-[clamp(2.1rem,2.6vw,3.25rem)] leading-[0.95] tracking-[-0.06em] text-[hsl(var(--teal))]">
-                    {item.value}
-                  </p>
-                  <p className="mt-5 font-body type-caption text-[hsl(var(--ice))]/70">
-                    {item.label}
-                  </p>
-                </div>
-              ))}
+              ].map((item) => {
+                const minValue = Math.round(item.min * systemSizeProgress);
+                const maxValue = item.max
+                  ? Math.round(item.max * systemSizeProgress)
+                  : null;
+                const displayValue = maxValue
+                  ? `~${minValue}–${maxValue} m³/day`
+                  : `~${minValue} m³/day`;
+
+                return (
+                  <div
+                    key={item.label}
+                    className="rounded-[28px] border border-[hsl(var(--ice))]/10 bg-[rgba(255,255,255,0.04)] px-6 py-8 text-center"
+                  >
+                    <p className="font-display whitespace-nowrap text-[clamp(2.1rem,2.6vw,3.25rem)] leading-[0.95] tracking-[-0.06em] text-[hsl(var(--teal))]">
+                      {displayValue}
+                    </p>
+                    <p className="mt-5 font-body type-caption text-[hsl(var(--ice))]/70">
+                      {item.label}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -577,7 +838,8 @@ export default function Page() {
             ].map((item) => (
               <article
                 key={item.title}
-                className="group rounded-[30px] border border-[hsl(var(--ice))]/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-7 md:p-8 backdrop-blur-sm shadow-[0_20px_70px_rgba(0,0,0,0.22)] transition-transform duration-300 hover:-translate-y-1"
+                onMouseMove={handleInteractiveCardMove}
+                className="interactive-card group rounded-[30px] border border-[hsl(var(--ice))]/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-7 md:p-8 backdrop-blur-sm shadow-[0_20px_70px_rgba(0,0,0,0.22)] transition-all duration-300 hover:-translate-y-1 hover:border-[rgba(97,211,255,0.32)] hover:shadow-[0_28px_90px_rgba(56,189,248,0.18)]"
               >
                 <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--teal))]/80 shadow-[0_14px_34px_rgba(14,142,191,0.24)]">
                   {item.icon}
@@ -638,10 +900,10 @@ export default function Page() {
       >
         <div className="container mx-auto px-6">
           <div className="max-w-3xl mx-auto text-center mb-16">
-            <p className="font-body type-section-header text-[hsl(var(--teal))] mb-4">
+            <p className="font-body type-section-header text-[hsl(var(--teal))] mb-3">
               Investors
             </p>
-            <h2 className="font-display type-subtitle text-[hsl(var(--fg))] mb-6">
+            <h2 className="font-display type-subtitle text-[hsl(var(--fg))] mb-4">
               Back the next generation of wave-powered freshwater production
             </h2>
             <p className="font-body type-body text-[hsl(var(--muted))]">
@@ -655,6 +917,7 @@ export default function Page() {
 
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-16">
             <ContactCard
+              onMouseMove={handleInteractiveCardMove}
               icon={
                 <ScalingIcon className="w-6 h-6 text-[hsl(var(--teal))] shrink-0 mt-0.5" />
               }
@@ -662,6 +925,7 @@ export default function Page() {
               description="Support the transition from concept development to real marine testing, operational data, and validated performance."
             />
             <ContactCard
+              onMouseMove={handleInteractiveCardMove}
               icon={
                 <ShieldIcon className="w-6 h-6 text-[hsl(var(--teal))] shrink-0 mt-0.5" />
               }
@@ -669,6 +933,7 @@ export default function Page() {
               description="Help develop freshwater systems designed for harsh offshore conditions and reduced dependence on external energy infrastructure."
             />
             <ContactCard
+              onMouseMove={handleInteractiveCardMove}
               icon={
                 <WrenchIcon className="w-6 h-6 text-[hsl(var(--teal))] shrink-0 mt-0.5" />
               }
@@ -696,10 +961,10 @@ export default function Page() {
       >
         <div className="container mx-auto px-6">
           <div className="max-w-4xl mx-auto text-center mb-16">
-            <p className="font-body type-section-header text-[hsl(var(--teal))] mb-4">
+            <p className="font-body type-section-header text-[hsl(var(--teal))] mb-3">
               Collaborate
             </p>
-            <h2 className="font-display type-subtitle text-[hsl(var(--fg))] mb-6">
+            <h2 className="font-display type-subtitle text-[hsl(var(--fg))] mb-4">
               Collaborate on scaling reliable wave-powered desalination
             </h2>
             <p className="font-body type-body text-[hsl(var(--muted))]">
@@ -714,7 +979,8 @@ export default function Page() {
             <button
               type="button"
               onClick={openContactForm}
-              className="group flex h-full min-h-[190px] gap-4 rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[hsl(var(--teal))]/35 hover:shadow-[0_22px_60px_rgba(4,31,73,0.1)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--teal))]/35"
+              onMouseMove={handleInteractiveCardMove}
+              className="interactive-card group flex h-full min-h-[190px] gap-4 rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[rgba(97,211,255,0.5)] hover:shadow-[0_22px_60px_rgba(56,189,248,0.18)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--teal))]/35"
             >
               <FlaskConicalIcon className="mt-1 h-6 w-6 shrink-0 text-[hsl(var(--teal))]" />
               <div>
@@ -731,7 +997,8 @@ export default function Page() {
             <button
               type="button"
               onClick={openContactForm}
-              className="group flex h-full min-h-[190px] gap-4 rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[hsl(var(--teal))]/35 hover:shadow-[0_22px_60px_rgba(4,31,73,0.1)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--teal))]/35"
+              onMouseMove={handleInteractiveCardMove}
+              className="interactive-card group flex h-full min-h-[190px] gap-4 rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[rgba(97,211,255,0.5)] hover:shadow-[0_22px_60px_rgba(56,189,248,0.18)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--teal))]/35"
             >
               <ShieldIcon className="mt-1 h-6 w-6 shrink-0 text-[hsl(var(--teal))]" />
               <div>
@@ -748,7 +1015,8 @@ export default function Page() {
             <button
               type="button"
               onClick={openContactForm}
-              className="group flex h-full min-h-[190px] gap-4 rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[hsl(var(--teal))]/35 hover:shadow-[0_22px_60px_rgba(4,31,73,0.1)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--teal))]/35"
+              onMouseMove={handleInteractiveCardMove}
+              className="interactive-card group flex h-full min-h-[190px] gap-4 rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[rgba(97,211,255,0.5)] hover:shadow-[0_22px_60px_rgba(56,189,248,0.18)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--teal))]/35"
             >
               <ScalingIcon className="mt-1 h-6 w-6 shrink-0 text-[hsl(var(--teal))]" />
               <div>
@@ -1036,13 +1304,18 @@ function ContactCard({
   icon,
   title,
   description,
+  onMouseMove,
 }: {
   icon: ReactNode;
   title: string;
   description: string;
+  onMouseMove?: (event: ReactMouseEvent<HTMLElement>) => void;
 }) {
   return (
-    <div className="flex gap-4 items-start p-6 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
+    <div
+      onMouseMove={onMouseMove}
+      className="interactive-card flex gap-4 items-start p-6 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] transition-all duration-300 hover:-translate-y-1 hover:border-[rgba(97,211,255,0.5)] hover:shadow-[0_22px_60px_rgba(56,189,248,0.18)]"
+    >
       {icon}
       <div>
         <h3 className="font-display type-heading text-[hsl(var(--fg))] mb-1">
