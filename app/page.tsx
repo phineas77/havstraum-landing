@@ -1155,7 +1155,7 @@ function ContactModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex min-h-[100dvh] items-start justify-center overflow-y-auto overscroll-contain p-4 py-6 sm:items-center"
+      className="fixed inset-0 z-[60] flex h-[100dvh] items-start justify-center overflow-y-auto overscroll-contain px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:items-center sm:py-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="contact-modal-title"
@@ -1163,11 +1163,11 @@ function ContactModal({
       <button
         type="button"
         aria-label="Close contact form"
-        className="absolute inset-0 bg-[hsl(var(--navy-deep))]/70 backdrop-blur-sm"
+        className="fixed inset-0 bg-[hsl(var(--navy-deep))]/70 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      <div className="relative z-10 w-full max-w-2xl max-h-[calc(100vh-2rem)] max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[32px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 shadow-2xl sm:p-6 md:p-8">
+      <div className="relative z-10 w-full max-w-2xl max-h-[calc(100dvh-2rem-env(safe-area-inset-bottom))] overflow-y-auto rounded-[32px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-6 md:p-8">
         <div className="mb-5 flex items-start justify-between gap-4 sm:mb-8">
           <div>
             <p className="font-body type-section-header text-[hsl(var(--teal))] mb-3">
@@ -1240,7 +1240,7 @@ function ContactModal({
             />
           </label>
 
-          <div className="sticky bottom-0 -mx-5 flex flex-col gap-3 bg-[hsl(var(--card))] px-5 pt-2 pb-1 sm:static sm:mx-0 sm:flex-row sm:justify-end sm:bg-transparent sm:p-0">
+          <div className="-mx-5 flex flex-col gap-3 bg-[hsl(var(--card))] px-5 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:mx-0 sm:flex-row sm:justify-end sm:bg-transparent sm:p-0">
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
